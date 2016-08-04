@@ -14,6 +14,16 @@ import java.util.List;
 public abstract class AbstractDelayedGraphPathFinder<N> {
     
     /**
+     * Stores the duration of the previous graph search in milliseconds.
+     */
+    protected long duration;
+    
+    /**
+     * Stores the number of expanded nodes in the previous graph search.
+     */
+    protected int numberOfExpandedNodes;
+    
+    /**
      * Searches for a shortest unweighted path from {@code source} to 
      * {@code target}. If a path is found, returns the list of nodes that are 
      * ordered in the list in the same manner as they appear on a shortest path.
