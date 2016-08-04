@@ -37,9 +37,6 @@ public abstract class AbstractDelayedGraphPathFinder<N> {
      * <p>
      * The following table summarizes
      * 
-     * <table>
-     * <tr></tr>
-     * </table>
      * <p>
      * Since bidirectional search outperforms the unidirectional search, this
      * abstract class assumes that all implementing classes implement
