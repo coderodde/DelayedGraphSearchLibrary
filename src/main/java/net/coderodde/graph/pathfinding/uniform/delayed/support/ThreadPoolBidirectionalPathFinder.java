@@ -645,16 +645,42 @@ extends AbstractDelayedGraphPathFinder<N> {
      */
     private abstract static class SleepingThread extends StoppableThread {
         
+        /**
+         * Holds the flag indicating whether this thread is put to sleep.
+         */
         protected volatile boolean sleepRequested;
+        
+        /**
+         * The number of milliseconds to sleep during each hibernation.
+         */
         protected final int threadSleepDuration;
+        
+        /**
+         * The maximum number of times a master thread hibernates itself before
+         * giving up and terminating the entire search.
+         */
         protected final int threadSleepTrials;
         
+        /**
+         * Constructs this thread supporting sleeping.
+         * 
+         * @param threadSleepDuration the number of milliseconds to sleep each 
+         *                            time.
+         * @param threadSleepTrials   the maximum number of trials to hibernate
+         *                            a master thread before giving up.
+         */
         SleepingThread(final int threadSleepDuration,
                        final int threadSleepTrials) {
             this.threadSleepDuration = threadSleepDuration;
             this.threadSleepTrials   = threadSleepTrials;
         }
         
+        /**
+         * Sets the current sleep status of this thread.
+         * 
+         * @param toSleep indicates whether to put this thread to sleep or 
+         *                wake it up.
+         */
         void putThreadToSleep(final boolean toSleep) {
             this.sleepRequested = toSleep;
         }
@@ -722,8 +748,11 @@ extends AbstractDelayedGraphPathFinder<N> {
          * @param searchProgressLogger the progress logger for the search 
          *                             direction of this search thread.
          * @param threadSleepDuration  the duration of sleeping in milliseconds
-         *                             always when a <b>slave</b> thread finds
-         *                             the frontier queue empty.
+         *                             always when a thread finds the frontier 
+         *                             queue empty.
+         * @param threadSleepTrials    the maximum number of hibernation trials
+         *                             before a master thread gives up and 
+         *                             terminates the entire search process.
          */
         SearchThread(final int id,
                      final AbstractNodeExpander<N> nodeExpander,
@@ -798,13 +827,16 @@ extends AbstractDelayedGraphPathFinder<N> {
          *                             node.
          * @param searchState          the search state object.
          * @param sharedSearchState    the shared search state object.
-         * @param isMasterThread       indicates whether this thread a master or
-         *                             a slave thread.
+         * @param isMasterThread       indicates whether this thread is a master
+         *                             or a slave thread.
          * @param searchProgressLogger the progress logger for logging the 
          *                             progress of this thread.
          * @param threadSleepDuration  the number of milliseconds to sleep 
-         *                             whenever a slave thread finds the
-         *                             frontier queue empty.
+         *                             whenever a thread finds the frontier 
+         *                             queue empty.
+         * @param threadSleepTrials    the maximum number of times a master
+         *                             thread hibernates itself before giving 
+         *                             up.
          */
         ForwardSearchThread(
                 final int id,
@@ -836,11 +868,13 @@ extends AbstractDelayedGraphPathFinder<N> {
             
             while (true) {
                 if (exit) {
+                    // This thread is asked to exit:
                     return;
                 }
                 
                 if (sleepRequested) {
-                    // Only a slave thread may get here.
+                    // Only a slave thread may get here. Just sleep and then
+                    // reiterate.
                     mysleep(threadSleepDuration);
                     continue;
                 }
@@ -849,20 +883,22 @@ extends AbstractDelayedGraphPathFinder<N> {
                 
                 if (current == null) {
                     if (isMasterThread) {
-                        int trials = 0;
-                        
-                        while (trials < threadSleepTrials) {
+                        for (int trials = 0; 
+                             trials < threadSleepTrials; 
+                             trials++) {
                             mysleep(threadSleepDuration);
                             
                             if ((current = QUEUE.dequeue()) != null) {
                                 break;
                             }
-                            
-                            ++trials;
                         }
                         
-                        if (searchState.getSleepingThreadCount()
+                        if (current == null
+                                && searchState.getSleepingThreadCount()
                                 == searchState.getTotalNumberOfThreads() - 1) {
+                            // The frontier queue is exhausted and no thread
+                            // found anything to append to it; terminate the 
+                            // entire search process:
                             sharedSearchState.requestExit();
                             return;
                         } else {
@@ -878,12 +914,17 @@ extends AbstractDelayedGraphPathFinder<N> {
                     searchState.wakeupAllThreads();
                 }
                 
+                // Possibly log the expansion of a node:
                 if (searchProgressLogger != null) {
                     searchProgressLogger.onExpansion(current);
                 }
              
+                // Possibly improve the shortest path so far:
                 sharedSearchState.updateSearchState(current);
                 
+                // If the current path is guaranteed to be optimal, terminate
+                // the entire search so that the threads may be joined and the 
+                // path constructed:
                 if (sharedSearchState.pathIsOptimal(current)) {
                     sharedSearchState.requestExit();
                     return;
@@ -891,6 +932,7 @@ extends AbstractDelayedGraphPathFinder<N> {
                 
                 numberOfExpandedNodes++; 
                 
+                // Expand the current node:
                 for (final N child : nodeExpander.expand(current)) {
                     if (!PARENTS.containsKey(child)) {
                         PARENTS.put(child, current);
@@ -928,6 +970,9 @@ extends AbstractDelayedGraphPathFinder<N> {
          * @param threadSleepDuration  the number of milliseconds to sleep 
          *                             whenever a slave thread finds the
          *                             frontier queue empty.
+         * @param threadSleepTrials    the maximum number of times a master
+         *                             thread hibernates itself before giving 
+         *                             up.
          */
         BackwardSearchThread(final int id,
                              final AbstractNodeExpander<N> nodeExpander,
@@ -958,11 +1003,13 @@ extends AbstractDelayedGraphPathFinder<N> {
             
             while (true) {
                 if (exit) {
+                    // This thread is asked to exit:
                     return;
                 }
                 
                 if (sleepRequested) {
-                    // Only a slave thread may get here.
+                    // Only a slave thread may get here. Just sleep and then
+                    // reiterate.
                     mysleep(threadSleepDuration);
                     continue;
                 }
@@ -971,21 +1018,22 @@ extends AbstractDelayedGraphPathFinder<N> {
                 
                 if (current == null) {
                     if (isMasterThread) {
-                        
-                        int trials = 0;
-                        
-                        while (trials < threadSleepTrials) {
+                        for (int trials = 0; 
+                             trials < threadSleepTrials; 
+                             trials++) {
                             mysleep(threadSleepDuration);
                             
                             if ((current = QUEUE.dequeue()) != null) {
                                 break;
                             }
-                            
-                            ++trials;
                         }
                         
-                        if (searchState.getSleepingThreadCount()
+                        if (current == null 
+                                && searchState.getSleepingThreadCount()
                                 == searchState.getTotalNumberOfThreads() - 1) {
+                            // The frontier queue is exhausted and no thread
+                            // found anything to append to it; terminate the 
+                            // entire search process:
                             sharedSearchState.requestExit();
                             return;
                         } else {
@@ -1001,12 +1049,17 @@ extends AbstractDelayedGraphPathFinder<N> {
                     searchState.wakeupAllThreads();
                 }
                 
+                // Possibly log the expansion of a node:
                 if (searchProgressLogger != null) {
                     searchProgressLogger.onExpansion(current);
                 }
                 
+                // Possibly improve the shortest path so far:
                 sharedSearchState.updateSearchState(current);
                 
+                // If the current path is guaranteed to be optimal, terminate
+                // the entire search so that the threads may be joined and the 
+                // path constructed:
                 if (sharedSearchState.pathIsOptimal(current)) {
                     sharedSearchState.requestExit();
                     return;
@@ -1014,6 +1067,7 @@ extends AbstractDelayedGraphPathFinder<N> {
                 
                 numberOfExpandedNodes++;
                 
+                // Expand the current node:
                 for (final N parent : nodeExpander.expand(current)) {
                     if (!PARENTS.containsKey(parent)) {
                         PARENTS.put(parent, current);
@@ -1029,6 +1083,16 @@ extends AbstractDelayedGraphPathFinder<N> {
         }
     }
     
+    /**
+     * This class implements a concurrent {@link java.util.Map} wrapper. One 
+     * reason to use this instead of a
+     * {@link java.util.concurrent.ConcurrentHashMap} is that the latter does
+     * not allow {@code null} <b>values</b>. However, we have to map the source
+     * and the target nodes to {@code null}.
+     * 
+     * @param <K> the actual key type.
+     * @param <V> the actual value type.
+     */
     private static final class ConcurrentMapWrapper<K, V> {
         
         private final Map<K, V> map = new HashMap<>();
@@ -1048,6 +1112,12 @@ extends AbstractDelayedGraphPathFinder<N> {
         }
     }
     
+    /**
+     * This class implements a concurrent {@link java.util.Deque} wrapper. We 
+     * need this to be able to implement {@code dequeue} atomically.
+     * 
+     * @param <N> the actual element type.
+     */
     private static final class ConcurrentQueueWrapper<N> {
         
         private final Deque<N> queue;
