@@ -7,6 +7,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.coderodde.graph.pathfinding.uniform.delayed.AbstractDelayedGraphPathFinder;
@@ -30,60 +31,98 @@ import net.coderodde.graph.pathfinding.uniform.delayed.ProgressLogger;
 public class ThreadPoolBidirectionalPathFinder<N> 
 extends AbstractDelayedGraphPathFinder<N> {
 
+    /**
+     * The number of milliseconds a slave thread sleeps when the queue is emtpy.
+     */
+    private static final int DEFAULT_SLAVE_THREAD_SLEEP_DURATION = 20;
+    
     private final int threadsPerSearchDirection;
+    
+    /**
+     * The duration of sleeping in milliseconds.
+     */
+    private final int sleepDuration;
+    
+    public ThreadPoolBidirectionalPathFinder(
+            final int threadsPerSearchDirection,
+            final int sleepDuration) {
+        this.threadsPerSearchDirection = 
+                Math.max(threadsPerSearchDirection, 1);
+        this.sleepDuration = Math.max(sleepDuration, 1);
+    }
     
     public ThreadPoolBidirectionalPathFinder(
             final int threadsPerSearchDirection) {
-        this.threadsPerSearchDirection = 
-                Math.max(1, threadsPerSearchDirection);
+        this(threadsPerSearchDirection, DEFAULT_SLAVE_THREAD_SLEEP_DURATION);
     }
     
     /**
      * {@inheritDoc }
      */
     @Override
-    public List<N> search(final N source, 
-                          final N target, 
-                          final AbstractNodeExpander<N> forwardSearchExpander, 
-                          final AbstractNodeExpander<N> backwardSearchExpander, 
-                          final ProgressLogger<N> forwardSearchProgressLogger, 
-                          final ProgressLogger<N> backwardSearchProgressLogger, 
-                          final ProgressLogger<N> sharedSearchProgressLogger) {
+    public List<N> 
+        search(final N source, 
+               final N target, 
+               final AbstractNodeExpander<N> forwardSearchNodeExpander, 
+               final AbstractNodeExpander<N> backwardSearchNodeExpander, 
+               final ProgressLogger<N> forwardSearchProgressLogger, 
+               final ProgressLogger<N> backwardSearchProgressLogger, 
+               final ProgressLogger<N> sharedSearchProgressLogger) {
+        Objects.requireNonNull(forwardSearchNodeExpander, 
+                               "The forward search node expander is null.");
+        
+        Objects.requireNonNull(backwardSearchNodeExpander,
+                               "The backward search node expander is null.");
+        
+        if (!forwardSearchNodeExpander.isValidNode(source)) {
+            throw new IllegalArgumentException(
+                    "The source node (" + source + ") was rejected by the " +
+                    "forward search node expander.");
+        }
+        
+        if (!backwardSearchNodeExpander.isValidNode(target)) {
+            throw new IllegalArgumentException(
+                    "The target node (" + target + ") was rejected by the " +
+                    "backward search node expander.");
+        }
+        
         if (sharedSearchProgressLogger != null) {
             sharedSearchProgressLogger.onBeginSearch(source, target);
         }
         
         this.duration = System.currentTimeMillis();
         
-        // Create the state object shared by both the search direction:
-        final SharedSearchState sharedSearchState = 
-                new SharedSearchState(source, 
-                                      target, 
-                                      sharedSearchProgressLogger);
-        
         // Create the state object shared by all the threads working on forward
         // direction:
-        final SearchState forwardSearchState  = 
-                new SearchState(source, threadsPerSearchDirection);
+        final SearchState<N> forwardSearchState  = 
+                new SearchState<>(source, threadsPerSearchDirection);
         
         // Create the state object shared by all the threads working on backward
         // direction:
-        final SearchState backwardSearchState = 
-                new SearchState(target, threadsPerSearchDirection);
+        final SearchState<N> backwardSearchState = 
+                new SearchState<>(target, threadsPerSearchDirection);
         
-        sharedSearchState.setForwardSearchState(forwardSearchState);
-        sharedSearchState.setBackwardSearchState(backwardSearchState);
+        // Create the state object shared by both the search direction:
+        final SharedSearchState<N> sharedSearchState = 
+                new SharedSearchState(source, 
+                                      target, 
+                                      forwardSearchState,
+                                      backwardSearchState,
+                                      sharedSearchProgressLogger);
         
         final ForwardSearchThread[] forwardSearchThreads =
                 new ForwardSearchThread[threadsPerSearchDirection];
         
+        // Below, the value of 'sleepDuration' since the thread being created
+        // is a master thread that never sleeps.
         forwardSearchThreads[0] = 
                 new ForwardSearchThread(0, 
-                                        forwardSearchExpander,
+                                        forwardSearchNodeExpander,
                                         forwardSearchState,
                                         sharedSearchState,
                                         true,
-                                        forwardSearchProgressLogger);
+                                        forwardSearchProgressLogger,
+                                        sleepDuration);
         
         forwardSearchState.introduceThread(forwardSearchThreads[0]);
         forwardSearchThreads[0].start();
@@ -91,11 +130,12 @@ extends AbstractDelayedGraphPathFinder<N> {
         for (int i = 1; i < threadsPerSearchDirection; ++i) {
             forwardSearchThreads[i] = 
                     new ForwardSearchThread(i,
-                                            forwardSearchExpander,
+                                            forwardSearchNodeExpander,
                                             forwardSearchState,
                                             sharedSearchState,
                                             false,
-                                            forwardSearchProgressLogger);
+                                            forwardSearchProgressLogger,
+                                            sleepDuration);
             
             forwardSearchState.introduceThread(forwardSearchThreads[i]);
             forwardSearchThreads[i].start();
@@ -104,13 +144,16 @@ extends AbstractDelayedGraphPathFinder<N> {
         final BackwardSearchThread[] backwardSearchThreads =
                 new BackwardSearchThread[threadsPerSearchDirection];
         
+        // Below, the value of 'sleepDuration' since the thread being created
+        // is a master thread that never sleeps.
         backwardSearchThreads[0] = 
                 new BackwardSearchThread(forwardSearchThreads.length,
-                                         backwardSearchExpander,
+                                         backwardSearchNodeExpander,
                                          backwardSearchState,
                                          sharedSearchState,
                                          true,
-                                         backwardSearchProgressLogger);
+                                         backwardSearchProgressLogger,
+                                         sleepDuration);
         
         backwardSearchState.introduceThread(backwardSearchThreads[0]);
         backwardSearchThreads[0].start();
@@ -118,11 +161,12 @@ extends AbstractDelayedGraphPathFinder<N> {
         for (int i = 1; i < threadsPerSearchDirection; ++i) {
             backwardSearchThreads[i] = 
                     new BackwardSearchThread(forwardSearchThreads.length + i,
-                                             backwardSearchExpander,
+                                             backwardSearchNodeExpander,
                                              backwardSearchState,
                                              sharedSearchState,
                                              false,
-                                             backwardSearchProgressLogger);
+                                             backwardSearchProgressLogger,
+                                             sleepDuration);
             
             backwardSearchState.introduceThread(backwardSearchThreads[i]);
             backwardSearchThreads[i].start();
@@ -162,7 +206,6 @@ extends AbstractDelayedGraphPathFinder<N> {
         return sharedSearchState.getPath();
     }
     
-    
     /**
      * This class holds the state shared by the two search directions.
      */
@@ -181,12 +224,12 @@ extends AbstractDelayedGraphPathFinder<N> {
         /**
          * The state of all the forward search threads.
          */
-        private SearchState<N> searchStateForward;
+        private SearchState<N> forwardSearchState;
         
         /**
          * The state of all the backward search threads.
          */
-        private SearchState<N> searchStateBackward;
+        private SearchState<N> backwardSearchState;
         
         /**
          * Caches the best known length from the source to the target nodes.
@@ -210,27 +253,23 @@ extends AbstractDelayedGraphPathFinder<N> {
         
         SharedSearchState(final N source,
                           final N target,
+                          final SearchState<N> forwardSearchState,
+                          final SearchState<N> backwardSearchState, 
                           final ProgressLogger<N> sharedProgressLogger) {
             this.source = source;
             this.target = target;
+            this.forwardSearchState   = forwardSearchState;
+            this.backwardSearchState  = backwardSearchState;
             this.sharedProgressLogger = sharedProgressLogger;
         }
         
-        void setForwardSearchState(final SearchState searchStateForward) {
-            this.searchStateForward = searchStateForward;
-        }
-        
-        void setBackwardSearchState(final SearchState searchStateBackward) {
-            this.searchStateBackward = searchStateBackward;
-        }
-        
         synchronized void updateFromForwardDirection(final N current) {
-            if (searchStateBackward.getDistanceMap().containsKey(current)
-                    && searchStateForward.getDistanceMap()
+            if (backwardSearchState.getDistanceMap().containsKey(current)
+                    && forwardSearchState.getDistanceMap()
                                          .containsKey(current)) {
                 final int currentDistance = 
-                        searchStateForward .getDistanceMap().get(current) +
-                        searchStateBackward.getDistanceMap().get(current);
+                        forwardSearchState .getDistanceMap().get(current) +
+                        backwardSearchState.getDistanceMap().get(current);
                 
                 if (bestPathLengthSoFar > currentDistance) {
                     bestPathLengthSoFar = currentDistance;
@@ -240,12 +279,12 @@ extends AbstractDelayedGraphPathFinder<N> {
         }
         
         synchronized void updateFromBackwardDirection(final N current) {
-            if (searchStateForward.getDistanceMap().containsKey(current)
-                    && searchStateBackward.getDistanceMap()
+            if (forwardSearchState.getDistanceMap().containsKey(current)
+                    && backwardSearchState.getDistanceMap()
                                           .containsKey(current)) {
                 final int currentDistance = 
-                        searchStateForward .getDistanceMap().get(current) +
-                        searchStateBackward.getDistanceMap().get(current);
+                        forwardSearchState .getDistanceMap().get(current) +
+                        backwardSearchState.getDistanceMap().get(current);
                 
                 if (bestPathLengthSoFar > currentDistance) {
                     bestPathLengthSoFar = currentDistance;
@@ -260,23 +299,23 @@ extends AbstractDelayedGraphPathFinder<N> {
                 return false;
             }
             
-            if (!searchStateForward.getDistanceMap().containsKey(node)) {
+            if (!forwardSearchState.getDistanceMap().containsKey(node)) {
                 // The forward search did not reach the node 'node' yet.
                 return false;
             }
             
-            if (!searchStateBackward.getDistanceMap().containsKey(node)) {
+            if (!backwardSearchState.getDistanceMap().containsKey(node)) {
                 // The backward search did not reach the node 'node' yet.
                 return false;
             }
             
             final int distance = 
-                    searchStateForward .getDistanceMap().get(node) +
-                    searchStateBackward.getDistanceMap().get(node);
+                    forwardSearchState .getDistanceMap().get(node) +
+                    backwardSearchState.getDistanceMap().get(node);
             
             if (distance > bestPathLengthSoFar) {
-                searchStateForward .requestThreadsToExit();
-                searchStateBackward.requestThreadsToExit();
+                forwardSearchState .requestThreadsToExit();
+                backwardSearchState.requestThreadsToExit();
                 pathIsFound = true;
                 
                 return true;
@@ -286,8 +325,8 @@ extends AbstractDelayedGraphPathFinder<N> {
         }
         
         synchronized void requestExit() {
-            searchStateForward .requestThreadsToExit();
-            searchStateBackward.requestThreadsToExit();
+            forwardSearchState .requestThreadsToExit();
+            backwardSearchState.requestThreadsToExit();
         }
         
         synchronized List<N> getPath() {
@@ -300,10 +339,10 @@ extends AbstractDelayedGraphPathFinder<N> {
             }
             
             final ConcurrentMapWrapper<N, N> parentMapForward = 
-                    searchStateForward.getParentMap();
+                    forwardSearchState.getParentMap();
             
             final ConcurrentMapWrapper<N, N> parentMapBackward = 
-                    searchStateBackward.getParentMap();
+                    backwardSearchState.getParentMap();
             
             final List<N> path = new ArrayList<>();
             
@@ -367,16 +406,14 @@ extends AbstractDelayedGraphPathFinder<N> {
          */
         private final Set<StoppableThread> runningThreadSet = 
                 Collections.<StoppableThread>
-                        newSetFromMap(new ConcurrentHashMap<StoppableThread, 
-                                                            Boolean>());
+                        newSetFromMap(new ConcurrentHashMap<>());
         
         /**
          * The set of all <b>slave</b> threads that are currently sleeping.
          */
         private final Set<SleepingThread> sleepingThreadSet = 
                 Collections.<SleepingThread>
-                        newSetFromMap(new ConcurrentHashMap<SleepingThread, 
-                                                            Boolean>());
+                        newSetFromMap(new ConcurrentHashMap<>());
         
         SearchState(final N initialNode, final int totalNumberOfThreads) {
             this.totalNumberOfThreads = totalNumberOfThreads;
@@ -479,6 +516,11 @@ extends AbstractDelayedGraphPathFinder<N> {
     private abstract static class SleepingThread extends StoppableThread {
         
         protected volatile boolean sleepRequested;
+        protected final int threadSleepDuration;
+        
+        SleepingThread(final int threadSleepDuration) {
+            this.threadSleepDuration = threadSleepDuration;
+        }
         
         void putThreadToSleep(final boolean toSleep) {
             this.sleepRequested = toSleep;
@@ -536,7 +578,9 @@ extends AbstractDelayedGraphPathFinder<N> {
                      final SearchState<N> searchState, 
                      final SharedSearchState<N> sharedSearchState,
                      final boolean isMasterThread,
-                     final ProgressLogger<N> searchProgressLogger) {
+                     final ProgressLogger<N> searchProgressLogger,
+                     final int threadSleepDuration) {
+            super(threadSleepDuration);
             this.id                   = id;
             this.nodeExpander         = nodeExpander;
             this.searchState          = searchState;
@@ -594,14 +638,16 @@ extends AbstractDelayedGraphPathFinder<N> {
                 final SearchState<N> searchState, 
                 final SharedSearchState<N> sharedSearchState,
                 final boolean isMasterThread,
-                final ProgressLogger<N> searchProgressLogger) {
+                final ProgressLogger<N> searchProgressLogger,
+                final int threadSleepDuration) {
             
             super(id,
                   nodeExpander,
                   searchState, 
                   sharedSearchState,
                   isMasterThread,
-                  searchProgressLogger);
+                  searchProgressLogger,
+                  threadSleepDuration);
         }
         
         @Override
@@ -702,13 +748,15 @@ extends AbstractDelayedGraphPathFinder<N> {
                              final SearchState<N> searchState, 
                              final SharedSearchState<N> sharedSearchState,
                              final boolean isMasterThread,
-                             final ProgressLogger<N> searchProgressLogger) {
+                             final ProgressLogger<N> searchProgressLogger,
+                             final int threadSleepDuration) {
            super(id,
                  nodeExpander,
                  searchState,
                  sharedSearchState,
                  isMasterThread,
-                 searchProgressLogger);
+                 searchProgressLogger,
+                 threadSleepDuration);
         }
         
         @Override

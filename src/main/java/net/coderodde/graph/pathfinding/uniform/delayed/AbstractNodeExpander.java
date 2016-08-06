@@ -20,4 +20,12 @@ public abstract class AbstractNodeExpander<N> {
      * @return the list of neighbor nodes.
      */
     public abstract List<N> expand(final N node);
+    
+    /**
+     * Checks that the input node {@code node} is a valid node in the graph.
+     * 
+     * @param node the node to check.
+     * @return {@code true} only if {@code node} is a valid node.
+     */
+    public abstract boolean isValidNode(final N node);
 }
