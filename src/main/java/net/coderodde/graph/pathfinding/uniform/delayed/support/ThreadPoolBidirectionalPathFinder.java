@@ -927,24 +927,32 @@ extends AbstractDelayedGraphPathFinder<N> {
                         for (int trials = 0; 
                              trials < threadSleepTrials; 
                              trials++) {
+                            // Only a master thread may get here.
                             mysleep(threadSleepDuration);
-                            
+//                            System.out.println("Forwrad sleeping: " + trials);
                             if ((current = QUEUE.dequeue()) != null) {
                                 break;
                             }
                         }
-                        
-                        if (current == null
-                                && searchState.getSleepingThreadCount()
-                                == searchState.getTotalNumberOfThreads() - 1) {
-                            // The frontier queue is exhausted and no thread
-                            // found anything to append to it; terminate the 
-                            // entire search process:
+                         
+                        if (current == null) {
                             sharedSearchState.requestExit();
                             return;
                         } else {
-                            continue;
+                            searchState.wakeupAllThreads();
                         }
+                        
+//                        if (current == null
+//                                && searchState.getSleepingThreadCount()
+//                                == searchState.getTotalNumberOfThreads() - 1) {
+//                            // The frontier queue is exhausted and no thread
+//                            // found anything to append to it; terminate the 
+//                            // entire search process:
+//                            sharedSearchState.requestExit();
+//                            return;
+//                        } else {
+//                            continue;
+//                        }
                     } else {
                         // This thread is a slave thread, make it sleep:
                         searchState.putThreadToSleep(this);
@@ -1063,23 +1071,31 @@ extends AbstractDelayedGraphPathFinder<N> {
                              trials < threadSleepTrials; 
                              trials++) {
                             mysleep(threadSleepDuration);
+//                            System.out.println("Backward sleeping: " + trials);
                             
                             if ((current = QUEUE.dequeue()) != null) {
                                 break;
                             }
                         }
                         
-                        if (current == null 
-                                && searchState.getSleepingThreadCount()
-                                == searchState.getTotalNumberOfThreads() - 1) {
-                            // The frontier queue is exhausted and no thread
-                            // found anything to append to it; terminate the 
-                            // entire search process:
+                        if (current == null) {
                             sharedSearchState.requestExit();
                             return;
                         } else {
-                            continue;
+                            searchState.wakeupAllThreads();
                         }
+                        
+//                        if (current == null 
+//                                && searchState.getSleepingThreadCount()
+//                                == searchState.getTotalNumberOfThreads() - 1) {
+//                            // The frontier queue is exhausted and no thread
+//                            // found anything to append to it; terminate the 
+//                            // entire search process:
+//                            sharedSearchState.requestExit();
+//                            return;
+//                        } else {
+//                            continue;
+//                        }
                     } else {
                         // This thread is a slave thread, make it sleep:
                         searchState.putThreadToSleep(this);
@@ -1198,4 +1214,3 @@ extends AbstractDelayedGraphPathFinder<N> {
         }
     }
 }
-

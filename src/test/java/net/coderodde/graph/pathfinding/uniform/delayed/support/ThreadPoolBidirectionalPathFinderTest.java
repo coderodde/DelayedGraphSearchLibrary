@@ -16,50 +16,97 @@ import static org.junit.Assert.*;
 
 public class ThreadPoolBidirectionalPathFinderTest {
     
+    private static final int ITERATIONS = 500;
+    
+    private final Random random;
+    
+    public ThreadPoolBidirectionalPathFinderTest() {
+        final long seed = 34056826129768L; System.nanoTime();
+        this.random = new Random(seed);
+        System.out.println("Seed = " + seed);
+    }
+    
     // This test makes sure that the thread pool bidirectional path finder 
     // computes the path of the same length as a simple BFS. Also, this test
     // demonstrates that the thread pool version is inferior in the problem 
     // setting in which node expansion works fast.
-    @Test
+    @Test   
     public void testSearch() {
-        final long seed = System.nanoTime();
-        final Random random = new Random(seed);
         final List<DirectedGraphNode> graph = createRandomGraph(5000, 
                                                                 30000, 
                                                                 random);
+        int matches = 0;
         
-        final DirectedGraphNode source = 
-                graph.get(random.nextInt(graph.size()));
+        for (int iteration = 0; iteration < ITERATIONS; ++iteration) {
+            System.out.printf("Iteration %4d: ", iteration);
+            
+            final DirectedGraphNode source = 
+                    graph.get(random.nextInt(graph.size()));
+
+            final DirectedGraphNode target = 
+                    graph.get(random.nextInt(graph.size()));
+            
+            long startTime = System.nanoTime();
+            final List<DirectedGraphNode> actualPath = bfs(source, target);
+            long endTime = System.nanoTime();
+
+            System.out.print("BFS in " + (endTime - startTime) / 1e6 + 
+                    " milliseconds;");
+
+            startTime = System.nanoTime();
+            final List<DirectedGraphNode> testPath =
+                    new ThreadPoolBidirectionalPathFinder<DirectedGraphNode>(16)
+                    .search(source, 
+                            target, 
+                            new ForwardNodeExpander(), 
+                            new BackwardNodeExpander(),
+                            null, 
+                            null, 
+                            null);
+            endTime = System.nanoTime();
+
+            System.out.print("ThreadPool in " + (endTime - startTime) / 1e6 + 
+                    " milliseconds;");
+
+            System.out.print("BFS path length: " + actualPath.size() + "; ");
+            System.out.print("ThreadPool path length: " + testPath.size() 
+                             + "; ");
+
+            if (actualPath.size() == testPath.size()) {
+                matches++;
+                System.out.println();
+            } else {
+                System.out.println("Mismatch!");
+            }
+        }
         
-        final DirectedGraphNode target = 
-                graph.get(random.nextInt(graph.size()));
+        assertEquals(ITERATIONS, matches);
+    }
+    
+    @Test
+    public void testDisconnectedGraph() {
+        // The two below subgraphs combine into a disconnected graph.
+        final List<DirectedGraphNode> subgraph1 = createRandomGraph(10,
+                                                                    60, 
+                                                                    random);
+        final List<DirectedGraphNode> subgraph2 = createRandomGraph(10,
+                                                                    60, 
+                                                                    random);
         
-        long startTime = System.nanoTime();
-        final List<DirectedGraphNode> actualPath = bfs(source, target);
-        long endTime = System.nanoTime();
+        final DirectedGraphNode source = subgraph1.get(
+                random.nextInt(subgraph1.size()));
         
-        System.out.println("BFS in " + (endTime - startTime) / 1e6 + 
-                " milliseconds.");
+        final DirectedGraphNode target = subgraph2.get(
+                random.nextInt(subgraph2.size()));
         
-        startTime = System.nanoTime();
-        final List<DirectedGraphNode> testPath =
-                new ThreadPoolBidirectionalPathFinder<DirectedGraphNode>(16)
+        new ThreadPoolBidirectionalPathFinder<DirectedGraphNode>(16)
                 .search(source, 
                         target, 
                         new ForwardNodeExpander(), 
                         new BackwardNodeExpander(),
-                        null, 
-                        null, 
+                        null,
+                        null,
                         null);
-        endTime = System.nanoTime();
-        
-        System.out.println("ThreadPool in " + (endTime - startTime) / 1e6 + 
-                " milliseconds.");
-        
-        System.out.println("BFS path length: " + actualPath.size());
-        System.out.println("ThreadPool path length: " + testPath.size());
-        
-        assertEquals(actualPath.size(), testPath.size());
     }
     
     static class ForwardNodeExpander 
