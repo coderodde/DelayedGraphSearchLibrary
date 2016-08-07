@@ -88,10 +88,12 @@ public class ThreadPoolBidirectionalPathFinderTest {
         // The two below subgraphs combine into a disconnected graph.
         final List<DirectedGraphNode> subgraph1 = createRandomGraph(10,
                                                                     60, 
-                                                                    random);
+                                                                    random,
+                                                                    0);
         final List<DirectedGraphNode> subgraph2 = createRandomGraph(10,
                                                                     60, 
-                                                                    random);
+                                                                    random,
+                                                                    10);
         
         final DirectedGraphNode source = subgraph1.get(
                 random.nextInt(subgraph1.size()));
@@ -99,7 +101,8 @@ public class ThreadPoolBidirectionalPathFinderTest {
         final DirectedGraphNode target = subgraph2.get(
                 random.nextInt(subgraph2.size()));
         
-        new ThreadPoolBidirectionalPathFinder<DirectedGraphNode>(16)
+        final List<DirectedGraphNode> path =
+                new ThreadPoolBidirectionalPathFinder<DirectedGraphNode>(16)
                 .search(source, 
                         target, 
                         new ForwardNodeExpander(), 
@@ -107,6 +110,8 @@ public class ThreadPoolBidirectionalPathFinderTest {
                         null,
                         null,
                         null);
+        
+        assertTrue(path.isEmpty());
     }
     
     static class ForwardNodeExpander 
@@ -226,20 +231,28 @@ public class ThreadPoolBidirectionalPathFinderTest {
     }
     
     private static List<DirectedGraphNode> 
+            createRandomGraph(final int nodes, 
+                              final int edges,
+                              final Random random) {
+        return createRandomGraph(nodes, edges, random, 0);
+    }
+    
+    private static List<DirectedGraphNode> 
         createRandomGraph(final int nodes, 
                           final int edges, 
-                          final Random random) {
+                          final Random random,
+                          final int startId) {
         final List<DirectedGraphNode> graph = new ArrayList<>(nodes);
         
-        for (int id = 0; id < nodes; ++id) {
-            graph.add(new DirectedGraphNode(id));
+        for (int i = 0; i < nodes; ++i) {
+            graph.add(new DirectedGraphNode(i + startId));
         }
         
         final List<Edge> edgeList = new ArrayList<>(nodes * nodes);
         
         for (int id1 = 0; id1 < nodes; ++id1) {
             for (int id2 = 0; id2 < nodes; ++id2) {
-                edgeList.add(new Edge(id1, id2));
+                edgeList.add(new Edge(id1 + startId, id2 + startId));
             }
         }
         
@@ -247,7 +260,8 @@ public class ThreadPoolBidirectionalPathFinderTest {
         
         for (int i = 0; i < Math.min(edges, edgeList.size()); ++i) {
             final Edge edge = edgeList.get(i);
-            graph.get(edge.tail).connectTo(graph.get(edge.head));
+            graph.get(edge.tail - startId).
+                    connectTo(graph.get(edge.head - startId));
         }
         
         return graph;
