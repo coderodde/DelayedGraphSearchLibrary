@@ -17,7 +17,8 @@ public abstract class AbstractNodeExpander<N> {
      * {@code node}.
      * 
      * @param node the node whose neighbors to generate.
-     * @return the list of neighbor nodes.
+     * @return the list of neighbor nodes or {@code null} if the node 
+     *         {@code node} is invalid.
      */
     public abstract List<N> expand(final N node);
     

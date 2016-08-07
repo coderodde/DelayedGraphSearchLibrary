@@ -113,4 +113,22 @@ public abstract class AbstractDelayedGraphPathFinder<N> {
                       backwardSearchProgressLogger,
                       sharedSearchProgressLogger);
     }
+        
+    /**
+     * Returns the number of milliseconds the previous search took to complete.
+     * 
+     * @return duration in milliseconds.
+     */
+    public long getDuration() {
+        return duration;
+    }
+    
+    /**
+     * Returns the number of expanded nodes in the previous search.
+     * 
+     * @return the number of expanded nodes.
+     */
+    public int getNumberOfExpandedNodes() {
+        return numberOfExpandedNodes;
+    }
 }
