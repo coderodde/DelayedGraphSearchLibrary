@@ -445,7 +445,6 @@ extends AbstractDelayedGraphPathFinder<N> {
                 // reconstructed. Ask all the threads to exit:
                 forwardSearchState .requestThreadsToExit();
                 backwardSearchState.requestThreadsToExit();
-                pathIsFound = true;
                 return true;
             }
             
@@ -470,7 +469,7 @@ extends AbstractDelayedGraphPathFinder<N> {
          *         reachable from the source node.
          */
         synchronized List<N> getPath() {
-            if (!pathIsFound) {
+            if (touchNode == null) {
                 if (sharedProgressLogger != null) {
                     sharedProgressLogger.onTargetUnreachable(source, target);
                 }
@@ -929,7 +928,7 @@ extends AbstractDelayedGraphPathFinder<N> {
                              trials++) {
                             // Only a master thread may get here.
                             mysleep(threadSleepDuration);
-//                            System.out.println("Forwrad sleeping: " + trials);
+                            
                             if ((current = QUEUE.dequeue()) != null) {
                                 break;
                             }
@@ -941,18 +940,6 @@ extends AbstractDelayedGraphPathFinder<N> {
                         } else {
                             searchState.wakeupAllThreads();
                         }
-                        
-//                        if (current == null
-//                                && searchState.getSleepingThreadCount()
-//                                == searchState.getTotalNumberOfThreads() - 1) {
-//                            // The frontier queue is exhausted and no thread
-//                            // found anything to append to it; terminate the 
-//                            // entire search process:
-//                            sharedSearchState.requestExit();
-//                            return;
-//                        } else {
-//                            continue;
-//                        }
                     } else {
                         // This thread is a slave thread, make it sleep:
                         searchState.putThreadToSleep(this);
@@ -971,13 +958,17 @@ extends AbstractDelayedGraphPathFinder<N> {
                 // Possibly improve the shortest path so far:
                 sharedSearchState.updateSearchState(current);
                 
+                if (sharedSearchState.pathIsOptimal(current)) {
+                    return;
+                }
+                
                 // If the current path is guaranteed to be optimal, terminate
                 // the entire search so that the threads may be joined and the 
                 // path constructed:
-                if (sharedSearchState.pathIsOptimal(current)) {
-                    sharedSearchState.requestExit();
-                    return;
-                }
+//                if (sharedSearchState.pathIsOptimal(current)) {
+//                    sharedSearchState.requestExit();
+//                    return;
+//                }
                 
                 numberOfExpandedNodes++; 
                 
@@ -1071,7 +1062,6 @@ extends AbstractDelayedGraphPathFinder<N> {
                              trials < threadSleepTrials; 
                              trials++) {
                             mysleep(threadSleepDuration);
-//                            System.out.println("Backward sleeping: " + trials);
                             
                             if ((current = QUEUE.dequeue()) != null) {
                                 break;
@@ -1084,18 +1074,6 @@ extends AbstractDelayedGraphPathFinder<N> {
                         } else {
                             searchState.wakeupAllThreads();
                         }
-                        
-//                        if (current == null 
-//                                && searchState.getSleepingThreadCount()
-//                                == searchState.getTotalNumberOfThreads() - 1) {
-//                            // The frontier queue is exhausted and no thread
-//                            // found anything to append to it; terminate the 
-//                            // entire search process:
-//                            sharedSearchState.requestExit();
-//                            return;
-//                        } else {
-//                            continue;
-//                        }
                     } else {
                         // This thread is a slave thread, make it sleep:
                         searchState.putThreadToSleep(this);
@@ -1114,13 +1092,17 @@ extends AbstractDelayedGraphPathFinder<N> {
                 // Possibly improve the shortest path so far:
                 sharedSearchState.updateSearchState(current);
                 
+                if (sharedSearchState.pathIsOptimal(current)) {
+                    return;
+                }
+                
                 // If the current path is guaranteed to be optimal, terminate
                 // the entire search so that the threads may be joined and the 
                 // path constructed:
-                if (sharedSearchState.pathIsOptimal(current)) {
-                    sharedSearchState.requestExit();
-                    return;
-                }
+//                if (sharedSearchState.pathIsOptimal(current)) {
+//                    sharedSearchState.requestExit();
+//                    return;
+//                }
                 
                 numberOfExpandedNodes++;
                 
