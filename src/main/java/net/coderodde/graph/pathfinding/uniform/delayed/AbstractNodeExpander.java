@@ -11,7 +11,7 @@ import java.util.List;
  * @param <N> the actual node type.
  */
 public abstract class AbstractNodeExpander<N> {
-   
+
     /**
      * Expands the argument node, i.e., generates all the neighbors of the node
      * {@code node}.
@@ -21,7 +21,7 @@ public abstract class AbstractNodeExpander<N> {
      *         {@code node} is invalid.
      */
     public abstract List<N> expand(final N node);
-    
+
     /**
      * Checks that the input node {@code node} is a valid node in the graph.
      * 

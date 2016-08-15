@@ -12,17 +12,17 @@ import java.util.List;
  * @param <N> the actual node type.
  */
 public abstract class AbstractDelayedGraphPathFinder<N> {
-    
+
     /**
      * Stores the duration of the previous graph search in milliseconds.
      */
     protected long duration;
-    
+
     /**
      * Stores the number of expanded nodes in the previous graph search.
      */
     protected int numberOfExpandedNodes;
-    
+
     /**
      * Searches for a shortest unweighted path from {@code source} to 
      * {@code target}. If a path is found, returns the list of nodes that are 
@@ -84,7 +84,7 @@ public abstract class AbstractDelayedGraphPathFinder<N> {
                final ProgressLogger<N> forwardSearchProgressLogger,
                final ProgressLogger<N> backwardSearchProgressLogger,
                final ProgressLogger<N> sharedSearchProgressLogger);
-        
+
     /**
      * Searches for the shortest path in a <b>undirected</b> graph.
      * 
@@ -113,7 +113,7 @@ public abstract class AbstractDelayedGraphPathFinder<N> {
                       backwardSearchProgressLogger,
                       sharedSearchProgressLogger);
     }
-        
+
     /**
      * Returns the number of milliseconds the previous search took to complete.
      * 
@@ -122,7 +122,7 @@ public abstract class AbstractDelayedGraphPathFinder<N> {
     public long getDuration() {
         return duration;
     }
-    
+
     /**
      * Returns the number of expanded nodes in the previous search.
      * 
