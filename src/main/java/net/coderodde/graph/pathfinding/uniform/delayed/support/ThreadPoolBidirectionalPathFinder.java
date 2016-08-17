@@ -410,49 +410,7 @@ extends AbstractDelayedGraphPathFinder<N> {
                 }
             }
         }
-
-//        /**
-//         * Checks whether the node {@code node} can improve the best known touch
-//         * node. If not, this method will return {@code true} which implies that
-//         * the shortest path is found.
-//         * 
-//         * @param node the new touch node candidate.
-//         * @return {@code true} only if the current stored path is the shortest.
-//         */
-//        synchronized boolean pathIsOptimalOld(final N node) {
-//            if (touchNode == null) {
-//                // Once here, the two search trees did not meet each other yet:
-//                return false;
-//            }
-//
-//            if (!forwardSearchState.getDistanceMap().containsKey(node)) {
-//                // The forward search did not reach the node 'node' yet:
-//                return false;
-//            }
-//
-//            if (!backwardSearchState.getDistanceMap().containsKey(node)) {
-//                // The backward search did not reach the node 'node' yet:
-//                return false;
-//            }
-//
-//            // Both the search direction has reached the node 'node':
-//            final int distance = 
-//                    forwardSearchState .getDistanceMap().get(node) +
-//                    backwardSearchState.getDistanceMap().get(node);
-//
-//            if (distance > bestPathLengthSoFar) {
-//                // The current touch node is on the shortest path. It can be
-//                // reconstructed. Ask all the threads to exit:
-//                forwardSearchState .requestThreadsToExit();
-//                backwardSearchState.requestThreadsToExit();
-//                return true;
-//            }
-//
-//            // The current best known path cannot yet be guaranteed to be the
-//            // shortest, so return 'false':
-//            return false;
-//        }
-
+        
         synchronized boolean pathIsOptimal() {
             if (touchNode == null) {
                 return false;

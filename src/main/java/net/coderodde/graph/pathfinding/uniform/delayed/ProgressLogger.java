@@ -35,6 +35,15 @@ public class ProgressLogger<N> {
     public void onNeighborGeneration(final N node) {}
 
     /**
+     * This method should be called whenever the search is improving the 
+     * distance of the input node.
+     * 
+     * @param node the node whose tentative shortest path distance has been 
+     *             improved by the search.
+     */
+    public void onNeighborImprovement(final N node) {}
+    
+    /**
      * This method should be called whenever the search has found a shortest 
      * path.
      * 
