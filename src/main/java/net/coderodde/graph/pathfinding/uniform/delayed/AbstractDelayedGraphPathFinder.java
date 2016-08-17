@@ -5,7 +5,8 @@ import java.util.List;
 /**
  * This abstract class defines the API for algorithms searching for shortest, 
  * <b>unweighted</b> paths in a graph with slow ("<i>delayed</i>") node 
- * expansion operations.
+ * expansion operations. A graph is considered delayed in case its node
+ * expansion operation takes at least several milliseconds.
  * 
  * @author Rodion "rodde" Efremov
  * @version 1.6 (Aug 4, 2016)
@@ -50,10 +51,6 @@ public abstract class AbstractDelayedGraphPathFinder<N> {
      * parts of progress will not be logged.
      * <p>
      * 
-     * The following table summarizes
-     * 
-     * <p>
-     * 
      * Since bidirectional search outperforms the unidirectional search, this
      * abstract class assumes that all implementing classes implement
      * bidirectional search, which is reflected in the API of this very class. 
@@ -70,8 +67,8 @@ public abstract class AbstractDelayedGraphPathFinder<N> {
      *                                     child nodes.
      * @param backwardSearchNodeExpander   the expander generating all the 
      *                                     parent nodes.                           
-     * @param forwardSearchProgressLogger  the forward search -related logger.
-     * @param backwardSearchProgressLogger the backward search -related logger.
+     * @param forwardSearchProgressLogger  the forward search related logger.
+     * @param backwardSearchProgressLogger the backward search related logger.
      * @param sharedSearchProgressLogger   the shared logger.
      * @return the shortest path as a list of nodes, or an empty list if the 
      *         target is not reachable from the source.
@@ -86,11 +83,11 @@ public abstract class AbstractDelayedGraphPathFinder<N> {
                final ProgressLogger<N> sharedSearchProgressLogger);
 
     /**
-     * Searches for the shortest path in a <b>undirected</b> graph.
+     * Searches for the shortest path in an <b>undirected</b> graph.
      * 
      * @param source                       the source node.
      * @param target                       the target node.
-     * @param nodeExpander                 the expander generating all neighbors
+     * @param nodeExpander                 the expander generating all neighbor
      *                                     nodes of a given node.
      * @param forwardSearchProgressLogger  the forward search related logger.
      * @param backwardSearchProgressLogger the backward search related logger.

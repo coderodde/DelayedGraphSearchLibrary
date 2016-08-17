@@ -13,8 +13,8 @@ import java.util.List;
 public abstract class AbstractNodeExpander<N> {
 
     /**
-     * Expands the argument node, i.e., generates all the neighbors of the node
-     * {@code node}.
+     * Expands the argument node, or namely, generates all the neighbors of the 
+     * node {@code node}.
      * 
      * @param node the node whose neighbors to generate.
      * @return the list of neighbor nodes or {@code null} if the node 

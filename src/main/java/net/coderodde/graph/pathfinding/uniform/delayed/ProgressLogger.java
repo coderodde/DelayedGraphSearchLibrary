@@ -3,32 +3,34 @@ package net.coderodde.graph.pathfinding.uniform.delayed;
 import java.util.List;
 
 /**
- * This interface provides the API for anyone interested in the search progress
- * of the shortest path finders.
+ * This class provides the API and default implementation of a progress logging 
+ * facilities. 
  * 
  * @author Rodion "rodde" Efremov
- * @version 1.6
+ * @version 1.6 (Aug 17, 2016)
  * @param <N> the actual node type.
  */
 public class ProgressLogger<N> {
 
     /**
      * This method should be called whenever the search is initiated.
+     * 
      * @param source the source node.
      * @param target the target node.
      */
     public void onBeginSearch(final N source, final N target) {}
 
     /**
-     * This method should be called whenever the search expands {@code node}.
+     * This method should be called whenever the search expands the node 
+     * {@code node}.
      * 
-     * @param node the expanded node.
+     * @param node the node being expanded.
      */
     public void onExpansion(final N node) {}
 
     /**
      * This method should be called whenever the search is generating a neighbor
-     * node of the being expanded.
+     * node of the node being expanded.
      * 
      * @param node the generated neighbor node.
      */

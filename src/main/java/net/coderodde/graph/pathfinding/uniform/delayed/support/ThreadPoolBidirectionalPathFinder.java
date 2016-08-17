@@ -99,8 +99,7 @@ extends AbstractDelayedGraphPathFinder<N> {
     /**
      * Constructs this path finder.
      * 
-     * @param requestedThreadCount      the number of threads per search
-     *                                  direction.
+     * @param requestedThreadCount      the number of threads searching.
      * @param masterThreadSleepDuration the number of milliseconds a master 
      *                                  thread sleeps whenever it discovers the
      *                                  frontier queue being empty.
@@ -135,10 +134,9 @@ extends AbstractDelayedGraphPathFinder<N> {
     /**
      * Construct this path finder using default sleeping duration.
      * 
-     * @param requestedThreadCount the number of threads per search direction.
+     * @param requestedThreadCount the number of threads searching.
      */
-    public ThreadPoolBidirectionalPathFinder(
-            final int requestedThreadCount) {
+    public ThreadPoolBidirectionalPathFinder(final int requestedThreadCount) {
         this(requestedThreadCount, 
              DEFAULT_MASTER_THREAD_SLEEP_DURATION,
              DEFAULT_SLAVE_THREAD_SLEEP_DURATION,
@@ -192,13 +190,11 @@ extends AbstractDelayedGraphPathFinder<N> {
 
         // Create the state object shared by all the threads working on forward
         // search direction:
-        final SearchState<N> forwardSearchState  = 
-                new SearchState<>(source, forwardSearchThreadCount);
+        final SearchState<N> forwardSearchState = new SearchState<>(source);
 
         // Create the state object shared by all the threads working on backward
         // search direction:
-        final SearchState<N> backwardSearchState = 
-                new SearchState<>(target, backwardSearchThreadCount);
+        final SearchState<N> backwardSearchState = new SearchState<>(target);
 
         // Create the state object shared by both the search direction:
         final SharedSearchState<N> sharedSearchState = 
@@ -358,11 +354,6 @@ extends AbstractDelayedGraphPathFinder<N> {
         private volatile N touchNode;
 
         /**
-         * Caches whether the shortest path was found.
-         */
-        private boolean pathIsFound;
-
-        /**
          * The progress logger for reporting the progress.
          */
         private final ProgressLogger<N> sharedProgressLogger;
@@ -430,10 +421,8 @@ extends AbstractDelayedGraphPathFinder<N> {
             }
 
             final int distance =
-                    forwardSearchState.getDistanceMap()
-                                      .get(forwardSearchHead) +
-                    backwardSearchState.getDistanceMap()
-                                       .get(backwardSearchHead);
+                  forwardSearchState .getDistanceMap().get(forwardSearchHead) +
+                  backwardSearchState.getDistanceMap().get(backwardSearchHead);
 
             return distance > bestPathLengthSoFar;
         }
@@ -448,7 +437,7 @@ extends AbstractDelayedGraphPathFinder<N> {
 
         /**
          * Constructs a shortest path and returns it as a list. If the target
-         * node is unreachable from the source node, return an empty list.
+         * node is unreachable from the source node, returns an empty list.
          * 
          * @return a shortest path found, or an empty list if target node is not 
          *         reachable from the source node.
@@ -510,20 +499,14 @@ extends AbstractDelayedGraphPathFinder<N> {
          * path.
          */
         private final ConcurrentMapWrapper<N, N> parents = 
-                new ConcurrentMapWrapper<>();
+                new ConcurrentMapWrapper<>(new HashMap<>());
 
         /**
          * This map maps each discovered node to its shortest path distance from
          * the source node.
          */
         private final ConcurrentMapWrapper<N, Integer> distance =
-                new ConcurrentMapWrapper<>();
-
-        /**
-         * Caches the total number of threads working on the search direction 
-         * specified by this state object.
-         */
-        private final int totalNumberOfThreads;
+                new ConcurrentMapWrapper<>(new HashMap<>());
 
         /**
          * The set of all the threads working on this particular direction.
@@ -551,20 +534,10 @@ extends AbstractDelayedGraphPathFinder<N> {
          * @param totalNumberOfThreads the number of threads working on a 
          *                             particular search direction.
          */
-        SearchState(final N initialNode, final int totalNumberOfThreads) {
-            this.totalNumberOfThreads = totalNumberOfThreads;
+        SearchState(final N initialNode) {
             queue.enqueue(initialNode);
             parents.put(initialNode, null);
             distance.put(initialNode, 0);
-        }
-
-        /**
-         * Returns the number of threads hold by this state objects.
-         * 
-         * @return the number of threads.
-         */
-        int getTotalNumberOfThreads() {
-            return totalNumberOfThreads;
         }
 
         /**
@@ -777,7 +750,9 @@ extends AbstractDelayedGraphPathFinder<N> {
          *                             queue empty.
          * @param threadSleepTrials    the maximum number of hibernation trials
          *                             before a master thread gives up and 
-         *                             terminates the entire search process.
+         *                             terminates the entire search process. If
+         *                             this thread is a slave thread, this 
+         *                             parameter is ignored.
          */
         SearchThread(final int id,
                      final AbstractNodeExpander<N> nodeExpander,
@@ -884,13 +859,14 @@ extends AbstractDelayedGraphPathFinder<N> {
 
         @Override
         public void run() {
-            final ConcurrentQueueWrapper<N> QUEUE = searchState.getQueue();
-            final ConcurrentMapWrapper<N, N> PARENTS   = 
-                    searchState.getParentMap();
-
-            final ConcurrentMapWrapper<N, Integer> DISTANCE = 
-                    searchState.getDistanceMap();
-
+            final ConcurrentQueueWrapper<N>        QUEUE;
+            final ConcurrentMapWrapper<N, N>       PARENTS;
+            final ConcurrentMapWrapper<N, Integer> DISTANCE;
+            
+            QUEUE    = searchState.getQueue();
+            PARENTS  = searchState.getParentMap();
+            DISTANCE = searchState.getDistanceMap();
+            
             while (true) {
                 if (exit) {
                     // This thread is asked to exit:
@@ -928,7 +904,6 @@ extends AbstractDelayedGraphPathFinder<N> {
                     } else {
                         // This thread is a slave thread, make it sleep:
                         searchState.putThreadToSleep(this);
-                        putThreadToSleep(true);
                         continue;
                     }
                 } else if (!QUEUE.isEmpty()) {
@@ -966,6 +941,10 @@ extends AbstractDelayedGraphPathFinder<N> {
                     } else if (DISTANCE.get(child) > DISTANCE.get(current) + 1) {
                         DISTANCE.put(child, DISTANCE.get(current) + 1);
                         PARENTS.put(child, current);
+                        
+                        if (searchProgressLogger != null) {
+                            searchProgressLogger.onNeighborImprovement(child);
+                        }
                     }
                 }
             }
@@ -1018,13 +997,14 @@ extends AbstractDelayedGraphPathFinder<N> {
 
         @Override
         public void run() {
-            final ConcurrentQueueWrapper<N> QUEUE = searchState.getQueue();
-            final ConcurrentMapWrapper<N, N> PARENTS = 
-                    searchState.getParentMap();
-
-            final ConcurrentMapWrapper<N, Integer> DISTANCE = 
-                    searchState.getDistanceMap();
-
+            final ConcurrentQueueWrapper<N>        QUEUE;
+            final ConcurrentMapWrapper<N, N>       PARENTS;
+            final ConcurrentMapWrapper<N, Integer> DISTANCE;
+            
+            QUEUE    = searchState.getQueue();
+            PARENTS  = searchState.getParentMap();
+            DISTANCE = searchState.getDistanceMap();
+            
             while (true) {
                 if (exit) {
                     // This thread is asked to exit:
@@ -1061,7 +1041,6 @@ extends AbstractDelayedGraphPathFinder<N> {
                     } else {
                         // This thread is a slave thread, make it sleep:
                         searchState.putThreadToSleep(this);
-                        putThreadToSleep(true);
                         continue;
                     }
                 } else if (!QUEUE.isEmpty()) {
@@ -1099,6 +1078,10 @@ extends AbstractDelayedGraphPathFinder<N> {
                     } else if (DISTANCE.get(parent) > DISTANCE.get(current) + 1) {
                         DISTANCE.put(parent, DISTANCE.get(current) + 1);
                         PARENTS.put(parent, current);
+                        
+                        if (searchProgressLogger != null) {
+                            searchProgressLogger.onNeighborImprovement(parent);
+                        }
                     }
                 }
             }
@@ -1117,7 +1100,11 @@ extends AbstractDelayedGraphPathFinder<N> {
      */
     private static final class ConcurrentMapWrapper<K, V> {
 
-        private final Map<K, V> map = new HashMap<>();
+        private final Map<K, V> map;
+        
+        ConcurrentMapWrapper(final Map<K, V> map) {
+            this.map = map;
+        }
 
         synchronized boolean containsKey(final K key) {
             return map.containsKey(key);
@@ -1178,8 +1165,6 @@ extends AbstractDelayedGraphPathFinder<N> {
     private static void mysleep(final int milliseconds) {
         try {
             Thread.sleep(milliseconds);
-        } catch (final InterruptedException ex) {
-
-        }
+        } catch (final InterruptedException ex) {}
     }
 }
