@@ -99,7 +99,7 @@ extends AbstractDelayedGraphPathFinder<N> {
     /**
      * Constructs this path finder.
      * 
-     * @param requestedThreadCount      the number of threads searching.
+     * @param requestedNumberOfThreads  the requested number of search threads.
      * @param masterThreadSleepDuration the number of milliseconds a master 
      *                                  thread sleeps whenever it discovers the
      *                                  frontier queue being empty.
@@ -111,11 +111,11 @@ extends AbstractDelayedGraphPathFinder<N> {
      *                                  entire search.
      */
     public ThreadPoolBidirectionalPathFinder(
-            final int requestedThreadCount,
+            final int requestedNumberOfThreads,
             final int masterThreadSleepDuration,
             final int slaveThreadSleepDuration,
             final int masterThreadTrials) {
-        this.numberOfThreads = Math.max(requestedThreadCount, 
+        this.numberOfThreads = Math.max(requestedNumberOfThreads, 
                                         MINIMUM_NUMBER_OF_THREADS);
 
         this.masterThreadSleepDuration = 
@@ -134,10 +134,10 @@ extends AbstractDelayedGraphPathFinder<N> {
     /**
      * Construct this path finder using default sleeping duration.
      * 
-     * @param requestedThreadCount the number of threads searching.
+     * @param requestedNumberOfThreads the requested number of search threads.
      */
-    public ThreadPoolBidirectionalPathFinder(final int requestedThreadCount) {
-        this(requestedThreadCount, 
+    public ThreadPoolBidirectionalPathFinder(final int requestedNumberOfThreads) {
+        this(requestedNumberOfThreads, 
              DEFAULT_MASTER_THREAD_SLEEP_DURATION,
              DEFAULT_SLAVE_THREAD_SLEEP_DURATION,
              DEFAULT_NUMBER_OF_TRIALS);
@@ -206,7 +206,7 @@ extends AbstractDelayedGraphPathFinder<N> {
 
         // The array holding all forward search threads:
         final ForwardSearchThread[] forwardSearchThreads =
-                new ForwardSearchThread[numberOfThreads];
+                new ForwardSearchThread[forwardSearchThreadCount];
 
         // Below, the value of 'sleepDuration' is ignored since the thread being 
         // created is a master thread that never sleeps.
@@ -226,7 +226,7 @@ extends AbstractDelayedGraphPathFinder<N> {
 
         // Create and spawn all the slave threads working on forward search 
         // direction.
-        for (int i = 1; i < numberOfThreads; ++i) {
+        for (int i = 1; i < forwardSearchThreadCount; ++i) {
             forwardSearchThreads[i] = 
                     new ForwardSearchThread(i,
                                             forwardSearchNodeExpander,
@@ -243,7 +243,7 @@ extends AbstractDelayedGraphPathFinder<N> {
 
         // The array holding all backward search threads:
         final BackwardSearchThread[] backwardSearchThreads =
-                new BackwardSearchThread[numberOfThreads];
+                new BackwardSearchThread[backwardSearchThreadCount];
 
         // Below, the value of 'sleepDuration' is ignored since the thread being
         // created is a master thread that never sleeps.
@@ -263,7 +263,7 @@ extends AbstractDelayedGraphPathFinder<N> {
 
         // Create and spawn all the slave threads working on backward search
         // direction:
-        for (int i = 1; i < numberOfThreads; ++i) {
+        for (int i = 1; i < backwardSearchThreadCount; ++i) {
             backwardSearchThreads[i] = 
                     new BackwardSearchThread(forwardSearchThreads.length + i,
                                              backwardSearchNodeExpander,

@@ -21,7 +21,7 @@ public class ThreadPoolBidirectionalPathFinderTest {
     private final Random random;
     
     public ThreadPoolBidirectionalPathFinderTest() {
-        final long seed = 34056826129768L; System.nanoTime();
+        final long seed = System.nanoTime();
         this.random = new Random(seed);
         System.out.println("Seed = " + seed);
     }
