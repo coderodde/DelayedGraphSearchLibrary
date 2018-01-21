@@ -44,7 +44,7 @@ public class ProgressLogger<N> {
      *             improved by the search.
      */
     public void onNeighborImprovement(final N node) {}
-    
+
     /**
      * This method should be called whenever the search has found a shortest 
      * path.

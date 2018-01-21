@@ -29,7 +29,7 @@ import net.coderodde.graph.pathfinding.uniform.delayed.ProgressLogger;
  * @version 1.6 (Aug 4, 2016)
  * @param <N> the actual graph node type.
  */
-public class ThreadPoolBidirectionalPathFinder<N> 
+public class ThreadPoolBidirectionalPathFinder2<N> 
 extends AbstractDelayedGraphPathFinder<N> {
 
     /**
@@ -110,7 +110,7 @@ extends AbstractDelayedGraphPathFinder<N> {
      *                                  hibernates itself before terminating the
      *                                  entire search.
      */
-    public ThreadPoolBidirectionalPathFinder(
+    public ThreadPoolBidirectionalPathFinder2(
             final int requestedNumberOfThreads,
             final int masterThreadSleepDuration,
             final int slaveThreadSleepDuration,
@@ -136,7 +136,7 @@ extends AbstractDelayedGraphPathFinder<N> {
      * 
      * @param requestedNumberOfThreads the requested number of search threads.
      */
-    public ThreadPoolBidirectionalPathFinder(final int requestedNumberOfThreads) {
+    public ThreadPoolBidirectionalPathFinder2(final int requestedNumberOfThreads) {
         this(requestedNumberOfThreads, 
              DEFAULT_MASTER_THREAD_SLEEP_DURATION,
              DEFAULT_SLAVE_THREAD_SLEEP_DURATION,
@@ -387,44 +387,55 @@ extends AbstractDelayedGraphPathFinder<N> {
          * 
          * @param current the touch node candidate.
          */
-        synchronized void updateSearchState(final N current) {
-            if (backwardSearchState.getDistanceMap().containsKey(current)
-                    && forwardSearchState.getDistanceMap()
-                                         .containsKey(current)) {
-                final int currentDistance = 
-                        forwardSearchState .getDistanceMap().get(current) +
-                        backwardSearchState.getDistanceMap().get(current);
+        /*synchronized*/ void updateSearchState(final N current) {
+            synchronized(this) {
+                if (backwardSearchState.getDistanceMap().containsKey(current)
+                        && forwardSearchState.getDistanceMap()
+                                             .containsKey(current)) {
+                    final int currentDistance = 
+                            forwardSearchState .getDistanceMap().get(current) +
+                            backwardSearchState.getDistanceMap().get(current);
 
-                if (bestPathLengthSoFar > currentDistance) {
-                    bestPathLengthSoFar = currentDistance;
-                    touchNode = current;
+                    if (bestPathLengthSoFar > currentDistance) {
+                        bestPathLengthSoFar = currentDistance;
+                        touchNode = current;
+                    }
                 }
+                
+                notify(); // Wake up one thread waiting for this object.
             }
         }
 
-        synchronized boolean pathIsOptimal() {
-            if (touchNode == null) {
-                return false;
+        /*synchronized*/ boolean pathIsOptimal() {
+            boolean answer;
+            
+            synchronized(this) {
+                if (touchNode == null) {
+                    return false;
+                }
+
+                final N forwardSearchHead = forwardSearchState.getQueue().getHead();
+
+                if (forwardSearchHead == null) {
+                    return false;
+                }
+
+                final N backwardSearchHead = backwardSearchState.getQueue()
+                                                                .getHead();
+
+                if (backwardSearchHead == null) {
+                    return false;
+                }
+
+                final int distance =
+                      forwardSearchState .getDistanceMap().get(forwardSearchHead) +
+                      backwardSearchState.getDistanceMap().get(backwardSearchHead);
+
+                answer = distance > bestPathLengthSoFar;
+                notify();
             }
-
-            final N forwardSearchHead = forwardSearchState.getQueue().getHead();
-
-            if (forwardSearchHead == null) {
-                return false;
-            }
-
-            final N backwardSearchHead = backwardSearchState.getQueue()
-                                                            .getHead();
-
-            if (backwardSearchHead == null) {
-                return false;
-            }
-
-            final int distance =
-                  forwardSearchState .getDistanceMap().get(forwardSearchHead) +
-                  backwardSearchState.getDistanceMap().get(backwardSearchHead);
-
-            return distance > bestPathLengthSoFar;
+            
+            return answer;
         }
 
         /**
