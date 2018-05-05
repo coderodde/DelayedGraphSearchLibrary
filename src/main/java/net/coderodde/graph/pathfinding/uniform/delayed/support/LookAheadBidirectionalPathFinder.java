@@ -46,7 +46,7 @@ extends AbstractDelayedGraphPathFinder<N> {
     private static final class CrawlerGraphDataHolder<N> {
         
         /**
-         * Maps a node to the list of its neighbors. For the forward crawlers,
+         * Maps a node to the list of its neighbours. For the forward crawlers,
          * a node is mapped to its children. For the backward crawlers, a node
          * is mapped to its parents.
          */
